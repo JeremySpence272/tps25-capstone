@@ -10,6 +10,8 @@ from io import BytesIO
 import datetime
 from fetch_coordinates import get_city_coordinates
 from fetch_weather import get_weather_data
+from weather_export import export_daily_weather_to_csv, validate_export_data
+from weather_chart import show_temperature_chart
 
 class WeatherGUI:
     def __init__(self, root):
@@ -17,6 +19,9 @@ class WeatherGUI:
         self.city_data = self.load_city_data()
         self.city_options = self.prepare_city_options()
         self.selected_city_data = None  # Track the selected city and state
+        self.current_weather_data = None  # Store current weather data for export
+        self.current_coordinates = None  # Store current coordinates for export
+        self.current_theme = "default"  # Track current theme
         self.setup_window()
         self.setup_widgets()
     
@@ -152,6 +157,33 @@ class WeatherGUI:
         self.create_weather_tabs(main_frame)
         main_frame.grid_rowconfigure(2, weight=1)  # City list frame
         main_frame.grid_rowconfigure(3, weight=1)  # Weather tabs
+        
+        # Export button section
+        export_frame = ttk.Frame(main_frame, padding="5")
+        export_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        export_frame.grid_columnconfigure(0, weight=1)
+        export_frame.grid_columnconfigure(1, weight=1)
+        
+        # Button container for horizontal layout
+        button_container = ttk.Frame(export_frame)
+        button_container.grid(row=0, column=0, columnspan=2)
+        
+        # Export button
+        self.export_button = ttk.Button(
+            button_container,
+            text="Export Daily Weather",
+            command=self.on_export_click,
+            state='disabled'  # Initially disabled until weather data is loaded
+        )
+        self.export_button.grid(row=0, column=0, padx=(0, 10))
+        
+        # Chart button
+        self.chart_button = ttk.Button(
+            button_container,
+            text="Show Temp Chart",
+            command=self.on_chart_click
+        )
+        self.chart_button.grid(row=0, column=1, padx=(10, 0))
         
         # Bind Enter key to submit
         self.root.bind('<Return>', lambda event: self.on_submit_click())
@@ -357,6 +389,9 @@ class WeatherGUI:
         # Disable the button to prevent multiple requests
         self.submit_button.config(state='disabled')
         
+        # Disable export button during new search
+        self.export_button.config(state='disabled')
+        
         # Run API call in separate thread to prevent GUI freezing
         def fetch_coordinates():
             try:
@@ -385,6 +420,232 @@ class WeatherGUI:
         self.city_var.set("")
         self.city_listbox.selection_clear(0, tk.END)
         self.populate_city_list()
+    
+    def on_export_click(self):
+        """Handle export button click"""
+        if not validate_export_data(self.current_weather_data, self.current_coordinates):
+            messagebox.showwarning(
+                "Export Not Available",
+                "No weather data available to export.\n\nPlease search for a city first to load weather data."
+            )
+            return
+        
+        # Call the export function
+        export_daily_weather_to_csv(self.current_weather_data, self.current_coordinates)
+    
+    def on_chart_click(self):
+        """Handle chart button click"""
+        # Call the chart function
+        show_temperature_chart()
+    
+    def get_weather_theme(self, weather_data):
+        """
+        Determine the UI theme based on current weather conditions.
+        
+        Args:
+            weather_data: Weather data dictionary
+            
+        Returns:
+            str: Theme name
+        """
+        if not weather_data or 'current' not in weather_data:
+            return "default"
+        
+        current = weather_data['current']
+        if 'weather' not in current or not current['weather']:
+            return "default"
+        
+        weather_main = current['weather'][0].get('main', '').lower()
+        weather_desc = current['weather'][0].get('description', '').lower()
+        
+        # Determine theme based on weather conditions
+        if weather_main in ['clear']:
+            return "sunny"
+        elif weather_main in ['clouds']:
+            if 'few' in weather_desc or 'scattered' in weather_desc:
+                return "partly_cloudy"
+            else:
+                return "cloudy"
+        elif weather_main in ['rain', 'drizzle']:
+            return "rainy"
+        elif weather_main in ['snow']:
+            return "snowy"
+        elif weather_main in ['thunderstorm']:
+            return "stormy"
+        elif weather_main in ['mist', 'fog', 'haze']:
+            return "foggy"
+        else:
+            return "default"
+    
+    def apply_weather_theme(self, theme_name):
+        """
+        Apply visual theme to the GUI based on weather conditions.
+        
+        Args:
+            theme_name: Name of the theme to apply
+        """
+        if theme_name == self.current_theme:
+            return  # No change needed
+        
+        self.current_theme = theme_name
+        
+        # Define theme colors
+        themes = {
+            "default": {
+                "bg": "#f0f0f0",
+                "fg": "#000000",
+                "accent": "#0078d4"
+            },
+            "sunny": {
+                "bg": "#fff8dc",  # Light yellow
+                "fg": "#8b4513",  # Brown text
+                "accent": "#ff8c00"  # Orange accent
+            },
+            "partly_cloudy": {
+                "bg": "#f0f8ff",  # Light blue
+                "fg": "#2f4f4f",  # Dark gray text
+                "accent": "#4682b4"  # Steel blue accent
+            },
+            "cloudy": {
+                "bg": "#e6e6fa",  # Light gray
+                "fg": "#2f2f2f",  # Dark text
+                "accent": "#696969"  # Gray accent
+            },
+            "rainy": {
+                "bg": "#e0f6ff",  # Light blue-gray
+                "fg": "#191970",  # Dark blue text
+                "accent": "#4169e1"  # Royal blue accent
+            },
+            "snowy": {
+                "bg": "#f8f8ff",  # Ghost white
+                "fg": "#2f4f4f",  # Dark slate gray
+                "accent": "#87ceeb"  # Sky blue accent
+            },
+            "stormy": {
+                "bg": "#2f2f2f",  # Dark gray
+                "fg": "#ffffff",  # White text
+                "accent": "#9370db"  # Purple accent
+            },
+            "foggy": {
+                "bg": "#f5f5f5",  # White smoke
+                "fg": "#708090",  # Slate gray text
+                "accent": "#a9a9a9"  # Dark gray accent
+            }
+        }
+        
+        colors = themes.get(theme_name, themes["default"])
+        
+        try:
+            # Apply theme to main window
+            self.root.configure(bg=colors["bg"])
+            
+            # Create custom styles for themed elements
+            style = ttk.Style()
+            
+            # Configure ttk styles with the theme
+            style.theme_use('clam')  # Use a base theme that supports customization
+            
+            # Configure button style
+            style.configure(
+                "Weather.TButton",
+                background=colors["accent"],
+                foreground="white" if theme_name == "stormy" else "black",
+                borderwidth=1,
+                focuscolor='none'
+            )
+            
+            # Configure frame style  
+            style.configure(
+                "Weather.TFrame",
+                background=colors["bg"],
+                relief="flat"
+            )
+            
+            # Configure label frame style
+            style.configure(
+                "Weather.TLabelframe",
+                background=colors["bg"],
+                foreground=colors["fg"]
+            )
+            
+            # Configure label style
+            style.configure(
+                "Weather.TLabel",
+                background=colors["bg"],
+                foreground=colors["fg"]
+            )
+            
+            # Configure notebook style
+            style.configure(
+                "Weather.TNotebook",
+                background=colors["bg"]
+            )
+            
+            style.configure(
+                "Weather.TNotebook.Tab",
+                background=colors["accent"],
+                foreground="white" if theme_name == "stormy" else "black"
+            )
+            
+            # Apply styles to all the themed widgets
+            self.apply_theme_to_widgets(colors)
+            
+            # Update window title with weather emoji
+            weather_emojis = {
+                "sunny": "☀️",
+                "partly_cloudy": "⛅",
+                "cloudy": "☁️",
+                "rainy": "🌧️",
+                "snowy": "❄️",
+                "stormy": "⛈️",
+                "foggy": "🌫️",
+                "default": "🌤️"
+            }
+            
+            emoji = weather_emojis.get(theme_name, "🌤️")
+            self.root.title(f"{emoji} Weather App - {theme_name.replace('_', ' ').title()}")
+            
+        except Exception as e:
+            print(f"Error applying theme: {e}")
+            # Fallback to default if theme application fails
+            self.root.configure(bg="#f0f0f0")
+            self.root.title("Weather App")
+    
+    def apply_theme_to_widgets(self, colors):
+        """Apply theme colors to specific widgets"""
+        try:
+            # Find and update all widgets recursively
+            def update_widget(widget):
+                widget_class = widget.winfo_class()
+                
+                # Apply styles based on widget type
+                if widget_class == 'Button':
+                    widget.configure(bg=colors["accent"], 
+                                   fg="white" if self.current_theme == "stormy" else "black")
+                elif widget_class == 'Frame':
+                    widget.configure(bg=colors["bg"])
+                elif widget_class == 'Label':
+                    widget.configure(bg=colors["bg"], fg=colors["fg"])
+                elif widget_class == 'TButton':
+                    widget.configure(style="Weather.TButton")
+                elif widget_class == 'TFrame':
+                    widget.configure(style="Weather.TFrame")
+                elif widget_class == 'TLabelframe':
+                    widget.configure(style="Weather.TLabelframe")
+                elif widget_class == 'TLabel':
+                    widget.configure(style="Weather.TLabel")
+                elif widget_class == 'TNotebook':
+                    widget.configure(style="Weather.TNotebook")
+                
+                # Recursively update children
+                for child in widget.winfo_children():
+                    update_widget(child)
+            
+            # Start from root
+            update_widget(self.root)
+            
+        except Exception as e:
+            print(f"Error updating widgets: {e}")
     
     def display_coordinates_result(self, coordinates, city_name):
         """Display the coordinates result in the GUI and fetch weather data"""
@@ -415,16 +676,38 @@ class WeatherGUI:
     
     def display_error(self, error_message):
         """Display error message in the GUI"""
+        # Clear stored data and disable export button
+        self.current_weather_data = None
+        self.current_coordinates = None
+        self.export_button.config(state='disabled')
+        
+        # Reset theme to default
+        self.apply_weather_theme("default")
+        
         messagebox.showerror("Error", f"Error occurred: {error_message}\n\nPlease check your internet connection and try again.")
     
     def display_weather_result(self, weather_data, coordinates):
         """Display weather data in current weather tab and forecast tab"""
         if weather_data and 'current' in weather_data:
+            # Store weather data and coordinates for export
+            self.current_weather_data = weather_data
+            self.current_coordinates = coordinates
+            
+            # Apply weather-based theme
+            theme_name = self.get_weather_theme(weather_data)
+            self.apply_weather_theme(theme_name)
+            
             # Update current weather tab
             self.update_current_weather_tab(weather_data, coordinates)
             
             # Update forecast tab
             self.update_forecast_tab(weather_data, coordinates)
+            
+            # Enable export button if we have daily data
+            if 'daily' in weather_data and weather_data['daily']:
+                self.export_button.config(state='normal')
+            else:
+                self.export_button.config(state='disabled')
             
             # Switch to current weather tab
             self.notebook.select(0)
@@ -452,7 +735,7 @@ class WeatherGUI:
         
         # Update temperature
         temp = current.get('temp', 0)
-        self.temperature_label.config(text=f"{temp:.1f}°C")
+        self.temperature_label.config(text=f"{temp:.1f}°F")
         
         # Update weather description
         if 'weather' in current and current['weather']:
@@ -469,7 +752,7 @@ class WeatherGUI:
         feels_like = current.get('feels_like', None)
         humidity = current.get('humidity', None)
         
-        self.feels_like_label.config(text=f"Feels like: {feels_like:.1f}°C" if feels_like is not None else "Feels like: --")
+        self.feels_like_label.config(text=f"Feels like: {feels_like:.1f}°F" if feels_like is not None else "Feels like: --")
         self.humidity_label.config(text=f"Humidity: {humidity}%" if humidity is not None else "Humidity: --")
         
         # Update sunrise/sunset

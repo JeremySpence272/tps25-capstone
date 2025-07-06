@@ -1,0 +1,16 @@
+weather_date,export_date,city,state,temp,humidity,rain,summary,predicted
+2025-07-05,2025-07-06,New York,New York,76.8,51,0,Clear Sky,False
+2025-07-04,2025-07-06,New York,New York,71.6,74,0,Clear Sky,False
+2025-07-03,2025-07-06,New York,New York,76.7,85,0,Few Clouds,False
+2025-07-02,2025-07-06,New York,New York,74.0,94,0,Mist,False
+2025-07-01,2025-07-06,New York,New York,76.8,89,0,Overcast Clouds,False
+2025-06-30,2025-07-06,New York,New York,81.2,63,0,Clear Sky,False
+2025-06-29,2025-07-06,New York,New York,80.7,79,0,Light Rain,False
+2025-07-06,2025-07-06,New York,New York,88.5,47,0,Few Clouds,False
+2025-07-07,2025-07-06,New York,New York,86.7,62,0.52,Light Rain,True
+2025-07-08,2025-07-06,New York,New York,92.9,48,1.43,Light Rain,True
+2025-07-09,2025-07-06,New York,New York,80.7,64,3.37,Light Rain,True
+2025-07-10,2025-07-06,New York,New York,84.1,60,21.6,Moderate Rain,True
+2025-07-11,2025-07-06,New York,New York,80.2,74,5.87,Light Rain,True
+2025-07-12,2025-07-06,New York,New York,80.6,65,0,Overcast Clouds,True
+2025-07-13,2025-07-06,New York,New York,77.5,75,0,Overcast Clouds,True
